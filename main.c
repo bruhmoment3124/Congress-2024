@@ -41,7 +41,7 @@ enum type assignType(char *str, char **keywords, int numOfKeywords)
 				}
 				if(str[i] == ',') return COMMA;
 				if(str[i] == '\n') return NEWLINE;
-				if(str[i] == 'p' && str[i+1] == '\0') return POINTER;
+				if(str[0] == 'p' && str[1] == '\0') return POINTER;
 			break;
 			
 			case 1:
@@ -246,7 +246,8 @@ void run(struct node *head, char **keywords, int numOfKeywords)
 	struct node *rside = head, *lside = rside;
 	
 	int testMem[1024] = {0};
-	int *pointerReg = testMem;
+	int pointerReg = 0;
+	int flag = 0;
 	
 	int **args = malloc(sizeof(int *));
 	int temp; /* for constants */
@@ -255,7 +256,9 @@ void run(struct node *head, char **keywords, int numOfKeywords)
 	{
 		int numOfArgs = 0;
 		
+		lside = rside;
 		lside = lside->left;
+		
 		while(lside != NULL)
 		{
 			if(lside->tk.type == CONST || lside->tk.type == ADDRESS || lside->tk.type == POINTER)
@@ -268,13 +271,15 @@ void run(struct node *head, char **keywords, int numOfKeywords)
 					args[numOfArgs-1] = &temp;
 				}
 				if(lside->tk.type == ADDRESS) args[numOfArgs-1] = testMem+atoi(lside->tk.lexeme);
-				if(lside->tk.type == POINTER) args[numOfArgs-1] = pointerReg;
+				if(lside->tk.type == POINTER) args[numOfArgs-1] = testMem+pointerReg;
 			}
 			
 			lside = lside->left;
 		}
 		lside = rside;
 		
+		int jumpCond = 0;
+		char id[30] = {0};
 		
 		if(rside->tk.type == KEYWORD)
 		{
@@ -283,8 +288,79 @@ void run(struct node *head, char **keywords, int numOfKeywords)
 			
 			switch(i)
 			{
-				case 0:
-					
+				case 0: /* ld */
+					*args[0] = *args[1];
+				break;
+				
+				case 1: /* add */
+					*args[0] += *args[1];
+				break;
+				
+				case 2: /* sub */
+					*args[0] -= *args[1];
+				break;
+				
+				case 3: /* ldp */
+					pointerReg = *args[0];
+				break;
+				
+				case 4: /* addp */
+					pointerReg += *args[0];
+				break;
+				
+				case 5: /* subp */
+					pointerReg -= *args[0];
+				break;
+				
+				case 6: /* jmp */
+					jumpCond = 1;
+					strcat(id, lside->left->tk.lexeme);
+				break;
+				
+				case 7: /* je */
+					if(flag == 1) jumpCond = 1;
+					strcat(id, lside->left->tk.lexeme);
+				break;
+				
+				case 8: /* jlt */
+					if(flag == 2) jumpCond = 1;
+					strcat(id, lside->left->tk.lexeme);
+				
+				break;
+				
+				case 9: /* jgt */
+					if(flag == 3) jumpCond = 1;
+					strcat(id, lside->left->tk.lexeme);
+				break;
+				
+				case 10: /* jky */
+				
+				break;
+				
+				case 11: /* cmp */
+					if(*args[0] == *args[1]) flag = 1;
+					if(*args[0] < *args[1]) flag = 2;
+					if(*args[0] > *args[1]) flag = 3;
+				break;
+				
+				case 12: /* call */
+				
+				break;
+				
+				case 13: /* ret */
+				
+				break;
+				
+				case 14: /* dot */
+				
+				break;
+				
+				case 15: /* wait*/
+				
+				break;
+				
+				case 16: /* cls */
+				
 				break;
 			}
 		} else if(rside->tk.type == ID)
@@ -295,22 +371,36 @@ void run(struct node *head, char **keywords, int numOfKeywords)
 			
 		}
 		
+		if(jumpCond == 1)
+		{
+			for(rside = head; strcmp(rside->tk.lexeme, id) != 0; rside = rside->right);
+		}
+		
+		//printf("%d, %d\n", pointerReg, *args[0]);
 		rside = rside->right;
 	}
+	
+	printf("%d\n", testMem[10]);
 }
 
 int main(void)
 {
-	char *str = "add 10, $30\n";
+	char *str = "add 0, $0\n cmp 0, $0\n je test1\n jmp test2\n test1\n add 10, $5\n jmp after\n test2\n add 10, $10\n after";
 	
-	//char *keywords[17] = {"ld", "add", "sub", "ldp", "addp", "subp", "jz", "je",
-	//					 "jlt", "jgt", "jky", "cmp", "call", "ret", "dot", "wait"
-	//					 "cls"};
+	/*
+	add 10, $3
+	jmp id
+	add 10, $2
+	id
+	add 10, $3
+	*/
 	
-	char *keywords[3] = {"ld", "add", "sub"};
+	char *keywords[17] = {"ld", "add", "sub", "ldp", "addp", "subp", "jmp", "je",
+						 "jlt", "jgt", "jky", "cmp", "call", "ret", "dot", "wait",
+						 "cls"};
 	
-	struct node *head = parse(str, keywords, 3);
-	run(head, keywords, 3);
+	struct node *head = parse(str, keywords, 17);
+	run(head, keywords, 17);
 	
 	getchar();
 	
