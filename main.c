@@ -274,9 +274,10 @@ void drawDots(struct dot *dots, int numOfDots)
 	for(i = 0; i<numOfDots; i++) DrawRectangle(dots[i].x*8+640, dots[i].y*8+64, 8, 8, GREEN);
 }
 
-void run(struct node *head, char **keywords, int numOfKeywords)
+void run(char **keywords, int numOfKeywords)
 {
-	struct node *rside = head, *lside = rside;
+	struct node *head;
+	struct node *rside, *lside = rside;
 	int pc = 0; /* program counter */
 	
 	struct stack *subStack = malloc(sizeof(struct stack));
@@ -295,190 +296,356 @@ void run(struct node *head, char **keywords, int numOfKeywords)
 	
 	InitWindow(1024, 512, "window"); /*init*/
 	
+	Color frstbutton = BLACK;
+	Color sndbutton = BLACK;
+	Color Switch = GREEN;
+	
+	int state = 0; /* which window */
+	int start = 0; /* begin executions */
+	int focused = 0; /* focused on the text box? */
+	
+	char *str = calloc(1, sizeof(char));
+	char *tempstr = calloc(1, sizeof(char));
+	int letterCount = 0;
+	int numOfNl = 0;
+	int scrollPos = 0;
+	
+	char *startbuttontext = " RUN";
+	
 	while(!WindowShouldClose())
 	{
 		BeginDrawing();
 		ClearBackground(WHITE);
 	
-		DrawRectangle(640, 64, 256, 256, BLACK);
-		drawDots(dots, numOfDots);
-		
-		Rectangle start = {832, 328, 64, 16};
-		DrawRectangleRounded(start, 0.5, 10, GREEN);
-		
-		Rectangle textBox = {32, 64, 576, 384};
-		DrawRectangleRounded(textBox, 0.1, 1000, LIGHTGRAY);
-		DrawRectangleRoundedLines(textBox, 0.1, 1000, 0.5, BLACK);
-	
-		if(rside != NULL) 
+		if(state == 0)
 		{
-			int numOfArgs = 0;
-			int numOfConsts = 0;
+			DrawRectangle(640, 64, 256, 256, BLACK); /* screen */
+			drawDots(dots, numOfDots); /* dots */
 			
-			lside = rside;
-			lside = lside->left;
+			DrawRectangle(640, 332, 256, 32, Switch); /* start */
+			Rectangle startbuttonrec = {640, 332, 256, 32};
+			DrawText(startbuttontext, 736, 340, 20, BLACK);
 			
-			while(lside != NULL)
+			DrawRectangle(640, 376, 256, 72, LIGHTGRAY); /* errors */
+			
+			DrawRectangle(32, 64, 576, 384, LIGHTGRAY); /* text box */
+			Rectangle textboxrec = {32, 64, 576, 384};
+			
+			scrollPos -= (int)GetMouseWheelMove();
+			if(scrollPos < 0) scrollPos = 0;
+			
+			int countedLines = 0;
+			int i;
+			for(i = 0; str[i] != '\0' && countedLines < scrollPos; i++)
 			{
-				if(lside->tk.type == CONST || lside->tk.type == ADDRESS || lside->tk.type == POINTER)
-				{
-					numOfArgs++;
-					args = realloc(args, numOfArgs * sizeof(int *));
-					if(lside->tk.type == CONST)
-					{
-						numOfConsts++;
-						temp = realloc(temp, numOfConsts * sizeof(int));
-						temp[numOfConsts-1] = atoi(lside->tk.lexeme+1);
-						args[numOfArgs-1] = temp+(numOfConsts-1);
-					}
-					if(lside->tk.type == ADDRESS) args[numOfArgs-1] = testMem+atoi(lside->tk.lexeme);
-					if(lside->tk.type == POINTER) args[numOfArgs-1] = testMem+pointerReg;
-				}
-				
-				lside = lside->left;
+				if(str[i] == '\n') countedLines++;
 			}
-			lside = rside;
 			
-			int jumpCond = 0;
-			char id[30] = {0};
+			int j, currentChr = 0, twn3after = 0;
+			for(j = i; str[j] != '\0' && twn3after <= 23; j++)
+			{
+				tempstr = realloc(tempstr, (currentChr+2) * sizeof(char));
+				tempstr[currentChr] = str[j];
+				tempstr[currentChr+1] = '\0';
+				currentChr++;
+				if(str[j] == '\n') twn3after++;
+			}
 			
-			if(rside->tk.type == KEYWORD)
+			DrawText(tempstr, 32+8, 64+8, 20, BLACK);
+			
+			DrawRectangle(32, 40, 64, 16, frstbutton); /* editor button */
+			Rectangle button1rec = {32, 40, 64, 16};
+			DrawText("EDIT", 32+16, 40+2, 12, WHITE);
+			
+			DrawRectangle(104, 40, 64, 16, sndbutton); /* editor button */
+			Rectangle button2rec = {104, 40, 64, 16};
+			DrawText("DOCS", 104+16, 40+2, 12, WHITE);
+			
+			frstbutton = BLACK;
+			sndbutton = BLACK;
+			
+			if(CheckCollisionPointRec(GetMousePosition(), button1rec))
 			{
-				int i;
-				for(i = 0; strcmp(rside->tk.lexeme, keywords[i]) != 0; i++);
-				
-				switch(i)
-				{
-					case 0: /* ld */
-						*args[0] = *args[1];
-					break;
-					
-					case 1: /* add */
-						*args[0] += *args[1];
-					break;
-					
-					case 2: /* sub */
-						*args[0] -= *args[1];
-					break;
-					
-					case 3: /* ldp */
-						pointerReg = *args[0];
-					break;
-					
-					case 4: /* addp */
-						pointerReg += *args[0];
-					break;
-					
-					case 5: /* subp */
-						pointerReg -= *args[0];
-					break;
-					
-					case 6: /* jmp */
-						jumpCond = 1;
-						strcat(id, lside->left->tk.lexeme);
-					break;
-					
-					case 7: /* je */
-						if(flag == 1) jumpCond = 1;
-						strcat(id, lside->left->tk.lexeme);
-					break;
-					
-					case 8: /* jlt */
-						if(flag == 2) jumpCond = 1;
-						strcat(id, lside->left->tk.lexeme);
-					
-					break;
-					
-					case 9: /* jgt */
-						if(flag == 3) jumpCond = 1;
-						strcat(id, lside->left->tk.lexeme);
-					break;
-					
-					case 10: /* jky */
-						if(IsKeyDown(*args[0])) jumpCond = 1;
-						strcat(id, lside->left->left->tk.lexeme);
-					break;
-					
-					case 11: /* cmp */
-						if(*args[0] == *args[1]) flag = 1;
-						if(*args[0] < *args[1]) flag = 2;
-						if(*args[0] > *args[1]) flag = 3;
-					break;
-					
-					case 12: /* call */
-						jumpCond = 1;
-						strcat(id, lside->left->tk.lexeme);
-						push(subStack, pc);
-					break;
-					
-					case 13: /* ret */
-						rside = head;
-						for(pc = 0; pc<subStack->arr[subStack->top]; pc++) rside = rside->right;
-						pop(subStack);
-					break;
-					
-					case 14: /* dot */
-						numOfDots++;
-						dots = realloc(dots, sizeof(struct dot) * numOfDots);
-						dots[numOfDots-1].x = *args[0];
-						dots[numOfDots-1].y = *args[1];
-					break;
-					
-					case 15: /* wait*/
-						
-					break;
-					
-					case 16: /* cls */
-						numOfDots = 0;
-						dots = realloc(dots, sizeof(struct dot));
-					break;
-				}
-			} else if(rside->tk.type == ID)
+				frstbutton = RED;
+				if(IsMouseButtonPressed(0)) state = 0;
+			}
+			
+			if(CheckCollisionPointRec(GetMousePosition(), button2rec))
 			{
+				sndbutton = RED;
+				if(IsMouseButtonPressed(0)) state = 1;
+			}
+			
+			if(CheckCollisionPointRec(GetMousePosition(), startbuttonrec) && IsMouseButtonPressed(0) && start == 0)
+			{
+				Switch = RED;
+				startbuttontext = "STOP";
+				head = parse(str, keywords, numOfKeywords);
+				rside = head;
+				lside = head;
+				start = 1;
+			} else if(CheckCollisionPointRec(GetMousePosition(), startbuttonrec) && IsMouseButtonPressed(0) && start == 1)
+			{
+				Switch = GREEN;
+				startbuttontext = " RUN";
+				start = 0;
 				
+				/* reset all variables */
+				
+				pc = 0;
+				
+				subStack->arr = realloc(subStack->arr, sizeof(int));
+				subStack->top = -1;
+				
+				int k;
+				for(k = 0; k<1024; k++) testMem[k] = 0;
+				pointerReg = 0;
+				flag = 0;
+				
+				dots = realloc(dots, sizeof(struct dot));
+				numOfDots = 0;
+			}
+			
+			if(CheckCollisionPointRec(GetMousePosition(), textboxrec))
+			{
+				SetMouseCursor(MOUSE_CURSOR_IBEAM);
 			} else
 			{
-				
+				SetMouseCursor(MOUSE_CURSOR_DEFAULT);
 			}
 			
-			if(jumpCond == 1)
+			if(CheckCollisionPointRec(GetMousePosition(), textboxrec) && IsMouseButtonPressed(0))
 			{
-				pc = 0;
-				for(rside = head; strcmp(rside->tk.lexeme, id) != 0; rside = rside->right) pc++;
+				focused = 1;	
+			} else if(!CheckCollisionPointRec(GetMousePosition(), textboxrec) && IsMouseButtonPressed(0))
+			{
+				focused = 0;
 			}
 			
-			rside = rside->right;
-			pc++;
-		}
+			if(focused == 1)
+			{
+				// Get char pressed (unicode character) on the queue
+				int key = GetCharPressed();
+
+				// Check if more characters have been pressed on the same frame
+				while (key > 0)
+				{
+					str = realloc(str, (letterCount+2) * sizeof(char));
+					str[letterCount] = (char)key;
+					str[letterCount+1] = '\0'; // Add null terminator at the end of the string.
+					letterCount++;
+	
+					key = GetCharPressed();  // Check next character in the queue
+				}
+				
+				if(IsKeyPressed(KEY_ENTER))
+				{
+					str = realloc(str, (letterCount+2) * sizeof(char));
+					str[letterCount] = '\n';
+					str[letterCount+1] = '\0'; // Add null terminator at the end of the string.
+					letterCount++;
+					numOfNl++;
+					if(numOfNl > scrollPos+23) scrollPos++;
+	
+					key = GetCharPressed();  // Check next character in the queue
+				}
+				
+				if(IsKeyPressed(KEY_TAB))
+				{
+					str = realloc(str, (letterCount+2) * sizeof(char));
+					str[letterCount] = '\t';
+					str[letterCount+1] = '\0'; // Add null terminator at the end of the string.
+					letterCount++;
+	
+					key = GetCharPressed();  // Check next character in the queue
+				}
+	
+				if(IsKeyPressed(KEY_BACKSPACE) && letterCount >= 1)
+				{
+					if(str[letterCount] == '\n') numOfNl--;
+					str = realloc(str, letterCount+1 * sizeof(char));
+					letterCount--;
+					
+					str[letterCount] = '\0';
+				}
+			}
 		
+			if(start == 1 && rside != NULL)
+			{
+				int numOfArgs = 0;
+				int numOfConsts = 0;
+				
+				lside = rside;
+				lside = lside->left;
+				
+				while(lside != NULL)
+				{
+					if(lside->tk.type == CONST || lside->tk.type == ADDRESS || lside->tk.type == POINTER)
+					{
+						numOfArgs++;
+						args = realloc(args, numOfArgs * sizeof(int *));
+						if(lside->tk.type == CONST)
+						{
+							numOfConsts++;
+							temp = realloc(temp, numOfConsts * sizeof(int));
+							temp[numOfConsts-1] = atoi(lside->tk.lexeme+1);
+							args[numOfArgs-1] = temp+(numOfConsts-1);
+						}
+						if(lside->tk.type == ADDRESS) args[numOfArgs-1] = testMem+atoi(lside->tk.lexeme);
+						if(lside->tk.type == POINTER) args[numOfArgs-1] = testMem+pointerReg;
+					}
+					
+					lside = lside->left;
+				}
+				lside = rside;
+				
+				int jumpCond = 0;
+				char id[30] = {0};
+				
+				if(rside->tk.type == KEYWORD)
+				{
+					int i;
+					for(i = 0; strcmp(rside->tk.lexeme, keywords[i]) != 0; i++);
+					
+					switch(i)
+					{
+						case 0: /* ld */
+							*args[0] = *args[1];
+						break;
+						
+						case 1: /* add */
+							*args[0] += *args[1];
+						break;
+						
+						case 2: /* sub */
+							*args[0] -= *args[1];
+						break;
+						
+						case 3: /* ldp */
+							pointerReg = *args[0];
+						break;
+						
+						case 4: /* addp */
+							pointerReg += *args[0];
+						break;
+						
+						case 5: /* subp */
+							pointerReg -= *args[0];
+						break;
+						
+						case 6: /* jmp */
+							jumpCond = 1;
+							strcat(id, lside->left->tk.lexeme);
+						break;
+						
+						case 7: /* je */
+							if(flag == 1) jumpCond = 1;
+							strcat(id, lside->left->tk.lexeme);
+						break;
+						
+						case 8: /* jlt */
+							if(flag == 2) jumpCond = 1;
+							strcat(id, lside->left->tk.lexeme);
+						break;
+						
+						case 9: /* jgt */
+							if(flag == 3) jumpCond = 1;
+							strcat(id, lside->left->tk.lexeme);
+						break;
+						
+						case 10: /* jky */
+							if(IsKeyDown(*args[0])) jumpCond = 1;
+							strcat(id, lside->left->left->tk.lexeme);
+						break;
+						
+						case 11: /* cmp */
+							if(*args[0] == *args[1]) flag = 1;
+							if(*args[0] < *args[1]) flag = 2;
+							if(*args[0] > *args[1]) flag = 3;
+						break;
+						
+						case 12: /* call */
+							jumpCond = 1;
+							strcat(id, lside->left->tk.lexeme);
+							push(subStack, pc);
+						break;
+						
+						case 13: /* ret */
+							rside = head;
+							for(pc = 0; pc<subStack->arr[subStack->top]; pc++) rside = rside->right;
+							pop(subStack);
+						break;
+						
+						case 14: /* dot */
+							numOfDots++;
+							dots = realloc(dots, sizeof(struct dot) * numOfDots);
+							dots[numOfDots-1].x = *args[0];
+							dots[numOfDots-1].y = *args[1];
+						break;
+						
+						case 15: /* wait*/
+							
+						break;
+						
+						case 16: /* cls */
+							numOfDots = 0;
+							dots = realloc(dots, sizeof(struct dot));
+						break;
+					}
+				} else if(rside->tk.type == ID)
+				{
+					
+				} else
+				{
+					
+				}
+				
+				if(jumpCond == 1)
+				{
+					pc = 0;
+					for(rside = head; strcmp(rside->tk.lexeme, id) != 0; rside = rside->right) pc++;
+				}
+				
+				rside = rside->right;
+				pc++;
+			}
+		} else if(state == 1)
+		{
+			DrawRectangle(32, 40, 64, 16, frstbutton); /* editor button */
+			Rectangle button1rec = {32, 40, 64, 16};
+			DrawText("EDIT", 32+16, 40+2, 12, WHITE);
+			
+			DrawRectangle(104, 40, 64, 16, sndbutton); /* editor button */
+			Rectangle button2rec = {104, 40, 64, 16};
+			DrawText("DOCS", 104+16, 40+2, 12, WHITE);
+			
+			frstbutton = BLACK;
+			sndbutton = BLACK;
+			
+			if(CheckCollisionPointRec(GetMousePosition(), button1rec))
+			{
+				frstbutton = RED;
+				if(IsMouseButtonPressed(0)) state = 0;
+			}
+			
+			if(CheckCollisionPointRec(GetMousePosition(), button2rec))
+			{
+				sndbutton = RED;
+				if(IsMouseButtonPressed(0)) state = 1;
+			}
+		}
 		EndDrawing();
 	}
 	CloseWindow();
 }
 
 int main(void)
-{
-	char *str = malloc(sizeof(char));
-	
-	FILE *f = fopen("text.txt", "r");
-	
-	int i = 0;
-	char c = fgetc(f);
-	while(c != EOF)
-	{
-		str = realloc(str, (i+2) * sizeof(char));
-		str[i] = c;
-		i++;
-		str[i] = '\0';
-		c = fgetc(f);
-	}
-	
+{	
 	char *keywords[17] = {"ld", "add", "sub", "ldp", "addp", "subp", "jmp", "je",
 						 "jlt", "jgt", "jky", "cmp", "call", "ret", "dot", "wait",
 						 "cls"};
 	
-	struct node *head = parse(str, keywords, 17);
-	run(head, keywords, 17);
+	run(keywords, 17);
 	
 	return 0;
 }
