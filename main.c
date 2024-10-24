@@ -144,9 +144,11 @@ struct node * createNode(struct token token)
 	return temp;
 }
 
-struct node * parse(char *str, char **keywords, int numOfKeywords)
+struct node * parse(char *str, char **keywords, int numOfKeywords, int *error)
 {
 	struct node *head = NULL, **p = &head;
+	
+	*error = 0;
 	
 	int index = 0;
 	struct token temp = getNextToken(str, &index, keywords, numOfKeywords);	
@@ -223,18 +225,18 @@ struct node * parse(char *str, char **keywords, int numOfKeywords)
 				state = 0;
 			break;
 			
-			case 6:
-				fprintf(stderr, "ERROR: malformed instruction\n");
-				exit(EXIT_FAILURE);
+			case 6: /* errors */
+				*error = 1;
+				return NULL;
 			break;
 		}
 	}
 	if(state == 3) state = 6;
 	
-	if(state == 6)
+	if(state == 6) 
 	{
-		fprintf(stderr, "ERROR: malformed instruction\n");
-		exit(EXIT_FAILURE);
+		*error = 1;
+		return NULL;
 	}
 	
 	return head;
@@ -271,7 +273,10 @@ struct dot
 void drawDots(struct dot *dots, int numOfDots)
 {
 	int i;
-	for(i = 0; i<numOfDots; i++) DrawRectangle(dots[i].x*8+640, dots[i].y*8+64, 8, 8, GREEN);
+	for(i = 0; i<numOfDots; i++)
+	{
+		if(dots[i].x < 32  || dots[i].y < 32) DrawRectangle(dots[i].x*8+640, dots[i].y*8+64, 8, 8, GREEN);
+	}
 }
 
 void run(char **keywords, int numOfKeywords)
@@ -294,7 +299,7 @@ void run(char **keywords, int numOfKeywords)
 	struct dot *dots = malloc(sizeof(struct dot));
 	int numOfDots = 0;
 	
-	InitWindow(1024, 512, "window"); /*init*/
+	InitWindow(1024, 512, "Assemblage"); /*init*/
 	
 	Color frstbutton = BLACK;
 	Color sndbutton = BLACK;
@@ -305,10 +310,15 @@ void run(char **keywords, int numOfKeywords)
 	int focused = 0; /* focused on the text box? */
 	
 	char *str = calloc(1, sizeof(char));
-	char *tempstr = calloc(1, sizeof(char));
+	
+	char *tempstr = calloc(2, sizeof(char));
+	tempstr[0] = '|';
+	
 	int letterCount = 0;
 	int numOfNl = 0;
 	int scrollPos = 0;
+	
+	int error = 0;
 	
 	char *startbuttontext = " RUN";
 	
@@ -344,9 +354,10 @@ void run(char **keywords, int numOfKeywords)
 			int j, currentChr = 0, twn3after = 0;
 			for(j = i; str[j] != '\0' && twn3after <= 23; j++)
 			{
-				tempstr = realloc(tempstr, (currentChr+2) * sizeof(char));
+				tempstr = realloc(tempstr, (currentChr+3) * sizeof(char));
 				tempstr[currentChr] = str[j];
-				tempstr[currentChr+1] = '\0';
+				tempstr[currentChr+1] = '|';
+				tempstr[currentChr+2] = '\0';
 				currentChr++;
 				if(str[j] == '\n') twn3after++;
 			}
@@ -357,7 +368,7 @@ void run(char **keywords, int numOfKeywords)
 			Rectangle button1rec = {32, 40, 64, 16};
 			DrawText("EDIT", 32+16, 40+2, 12, WHITE);
 			
-			DrawRectangle(104, 40, 64, 16, sndbutton); /* editor button */
+			DrawRectangle(104, 40, 64, 16, sndbutton); /* docs button */
 			Rectangle button2rec = {104, 40, 64, 16};
 			DrawText("DOCS", 104+16, 40+2, 12, WHITE);
 			
@@ -380,7 +391,7 @@ void run(char **keywords, int numOfKeywords)
 			{
 				Switch = RED;
 				startbuttontext = "STOP";
-				head = parse(str, keywords, numOfKeywords);
+				head = parse(str, keywords, numOfKeywords, &error);
 				rside = head;
 				lside = head;
 				start = 1;
@@ -404,6 +415,11 @@ void run(char **keywords, int numOfKeywords)
 				
 				dots = realloc(dots, sizeof(struct dot));
 				numOfDots = 0;
+			}
+			
+			if(head == NULL && error == 1)
+			{
+				DrawText("ERROR: malformed instruction", 640+16, 376+28, 16, BLACK);
 			}
 			
 			if(CheckCollisionPointRec(GetMousePosition(), textboxrec))
@@ -448,6 +464,14 @@ void run(char **keywords, int numOfKeywords)
 					if(numOfNl > scrollPos+23) scrollPos++;
 	
 					key = GetCharPressed();  // Check next character in the queue
+				} else if(IsKeyPressed(KEY_BACKSPACE) && letterCount >= 1)
+				{
+					if(str[letterCount] == '\n') numOfNl--;
+					
+					str = realloc(str, letterCount+1 * sizeof(char));
+					letterCount--;
+					
+					str[letterCount] = '\0';
 				}
 				
 				if(IsKeyPressed(KEY_TAB))
@@ -458,15 +482,6 @@ void run(char **keywords, int numOfKeywords)
 					letterCount++;
 	
 					key = GetCharPressed();  // Check next character in the queue
-				}
-	
-				if(IsKeyPressed(KEY_BACKSPACE) && letterCount >= 1)
-				{
-					if(str[letterCount] == '\n') numOfNl--;
-					str = realloc(str, letterCount+1 * sizeof(char));
-					letterCount--;
-					
-					str[letterCount] = '\0';
 				}
 			}
 		
@@ -621,6 +636,10 @@ void run(char **keywords, int numOfKeywords)
 			
 			frstbutton = BLACK;
 			sndbutton = BLACK;
+			
+			DrawText("ld dest, var\nadd dest, var\nsub dest, var\nldp var\naddp var\nsubp var\njmp label\nje label\njlt label\njgt label\njky var, label\ncmp var1, var2\ncall label\nret\ndot var1, var2\nwait var (N/A)\ncls\n", 32, 64, 20, BLACK);
+			DrawText("dest = var\ndest += var\ndest -= var\np = var\np += var\np -= var\npc = label\nif(flag == EQUALS) pc = label\nif(flag == LESSTHAN) pc = label\nif(flag == GREATERTHAN) pc = label\nif(KEYPRESS(var)) pc = label\nsetflag(var1, var2)\npush pc, pc = label\npop pc, pc = top\nplace dot at (x, y)\nwait time in milliseconds\nclear screen\n", 256, 64, 20, BLACK);
+			DrawText("There is 1024 bytes of memory, below are the ways of addressing it:\ndirect address (0-1023): specific address to perform the operation on\npointer (p): a register which points to a value in memory to perform the operation on\nconstants ($0-$255): a constant value used by the instruction on a memory location\n\nThere are some registers the interpreter uses for execution, they are:\nprogram counter (pc): the position of the current instruction, used for jumps\nflag register: flags are set with the cmp operation, if the corresponding flag is set\n                  when a specific jump is called, the jump executes\n", 32, 352, 20, BLACK);
 			
 			if(CheckCollisionPointRec(GetMousePosition(), button1rec))
 			{
